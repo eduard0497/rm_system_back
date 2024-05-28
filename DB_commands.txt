@@ -1,0 +1,114 @@
+CREATE TABLE owners (
+    owner_id SERIAL PRIMARY KEY,
+    owner_first_name VARCHAR(60) NOT NULL,
+    owner_last_name VARCHAR(60) NOT NULL,
+    owner_email_address VARCHAR(60) NOT NULL,
+    owner_email_verified BOOLEAN NOT NULL,
+    owner_password TEXT NOT NULL,
+    date_registered TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (owner_email_address)
+);
+
+
+CREATE TABLE restaurants (
+    restaurant_id SERIAL PRIMARY KEY,
+    restaurant_owner_id INT NOT NULL,
+    restaurant_name VARCHAR(500) NOT NULL,
+    restaurant_address_street VARCHAR(50),
+    restaurant_address_unit VARCHAR(20),
+    restaurant_address_city VARCHAR(50),
+    restaurant_address_state CHAR(2),
+    restaurant_address_zip VARCHAR(20),
+    restaurant_phone_number VARCHAR(50),
+    restaurant_fax_number VARCHAR(50),
+    restaurant_email_address VARCHAR(100),
+    restaurant_menu_note TEXT,
+    restaurant_is_active BOOLEAN,
+    FOREIGN KEY (restaurant_owner_id) REFERENCES owners(owner_id)
+);
+
+CREATE TABLE transactions (
+	id SERIAL PRIMARY KEY,
+	restaurant_id INT NOT NULL,
+	session_id VARCHAR(200),
+	session_status VARCHAR(200),
+	amount_total INT,
+	payment_status VARCHAR(200),
+	provided_email VARCHAR(200),
+	provided_name VARCHAR(200),
+	payment_intent VARCHAR(200),
+	card_brand VARCHAR(100),
+	card_exp_month VARCHAR(100),
+	card_exp_year VARCHAR(100),
+	card_last_four VARCHAR(100),
+	subscription_end_date DATE,
+	transaction_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (restaurant_id) REFERENCES restaurants(restaurant_id)
+);
+
+CREATE TABLE employees (
+    employee_id SERIAL PRIMARY KEY,
+    restaurant_owner_id INT NOT NULL,
+    employee_first_name VARCHAR(100) NOT NULL,
+    employee_last_name VARCHAR(100) NOT NULL,
+    employee_email_address VARCHAR(100) NOT NULL,
+    employee_username VARCHAR(100) NOT NULL,
+    employee_password TEXT,
+    employee_is_active BOOLEAN NOT NULL,
+    UNIQUE (restaurant_owner_id, employee_username),
+    FOREIGN KEY (restaurant_owner_id) REFERENCES owners(owner_id)
+);
+
+CREATE TABLE employee_restaurant_accesses (
+	id SERIAL PRIMARY KEY,
+	employee_id INT NOT NULL,
+	restaurant_id INT NOT NULL,
+	has_access BOOLEAN NOT NULL,
+	UNIQUE (employee_id, restaurant_id),
+	FOREIGN KEY (employee_id) REFERENCES employees(employee_id),
+	FOREIGN KEY (restaurant_id) REFERENCES restaurants(restaurant_id)
+);
+
+
+CREATE TABLE categories (
+	category_id SERIAL PRIMARY KEY,
+	restaurant_id INT NOT NULL,
+	category_name VARCHAR(100) NOT NULL,
+	display_order INT,
+	added_by_owner_id INT,
+	added_by_employee_id INT,
+	FOREIGN KEY (added_by_owner_id) REFERENCES owners(owner_id),
+	FOREIGN KEY (added_by_employee_id) REFERENCES employees(employee_id),
+	FOREIGN KEY (restaurant_id) REFERENCES restaurants(restaurant_id)
+);
+
+
+CREATE TABLE menu_items (
+	id SERIAL PRIMARY KEY,
+	restaurant_id INT NOT NULL,
+	category_id INT NOT NULL,
+	item_name VARCHAR(100) NOT NULL,
+	item_description TEXT,
+	item_calories INT,
+	item_price DECIMAL(10, 2),
+	item_image_link TEXT,
+	item_preparation_duration INT,
+	item_is_active BOOLEAN NOT NULL,
+	display_order INT,
+	added_by_owner_id INT,
+	added_by_employee_id INT,
+	FOREIGN KEY (restaurant_id) REFERENCES restaurants(restaurant_id),
+	FOREIGN KEY (category_id) REFERENCES categories(category_id),
+	FOREIGN KEY (added_by_owner_id) REFERENCES owners(owner_id),
+	FOREIGN KEY (added_by_employee_id) REFERENCES employees(employee_id)
+);
+
+
+CREATE TABLE server_sent_emails (
+	id SERIAL,
+	sent_to VARCHAR(100) NOT NULL,
+	note TEXT NOT NULL,
+	successful BOOLEAN NOT NULL,
+	smtp_response TEXT NOT NULL,
+	time_stamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
