@@ -6,11 +6,9 @@ const knex = require("knex");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
-
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-
 const SUBSCRIPTION_PRICE_IN_CENTS = 2000;
 
 //
@@ -121,6 +119,9 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+//
+// Routes
+//
 app.post("/register-owner", async (req, res) => {
   const {
     owner_first_name,
@@ -768,6 +769,107 @@ app.post("/process-payment", verifyToken, async (req, res) => {
       msg: "Internal server error",
     });
   }
+});
+
+app.post("/get-payment-activity", verifyToken, async (req, res) => {
+  const { decoded_user_id } = req.body;
+
+  const payments = await db(T_RESTAURANTS)
+    .join(
+      T_TRANSACTIONS,
+      `${T_RESTAURANTS}.restaurant_id`,
+      `${T_TRANSACTIONS}.restaurant_id`
+    )
+    .select(
+      `${T_RESTAURANTS}.restaurant_name`,
+      `${T_TRANSACTIONS}.id as transaction_id`,
+      `${T_TRANSACTIONS}.amount_total`,
+      `${T_TRANSACTIONS}.payment_status`,
+      `${T_TRANSACTIONS}.provided_email`,
+      `${T_TRANSACTIONS}.provided_name`,
+      `${T_TRANSACTIONS}.card_brand`,
+      `${T_TRANSACTIONS}.card_exp_month`,
+      `${T_TRANSACTIONS}.card_exp_year`,
+      `${T_TRANSACTIONS}.card_last_four`,
+      `${T_TRANSACTIONS}.subscription_end_date`,
+      `${T_TRANSACTIONS}.transaction_timestamp`
+    )
+    .where(`${T_RESTAURANTS}.restaurant_owner_id`, decoded_user_id)
+    .whereNotNull(`${T_TRANSACTIONS}.session_id`)
+    .orderBy(`${T_TRANSACTIONS}.id`, `desc`)
+    .catch((e) => {
+      console.log(e);
+      return res.json({
+        status: 0,
+        msg: "Internal server error",
+      });
+    });
+
+  res.json({
+    status: 1,
+    payments,
+  });
+});
+
+app.post("/add-employee", verifyToken, async (req, res) => {
+  const {
+    decoded_user_id,
+    employee_first_name,
+    employee_last_name,
+    employee_email_address,
+    employee_username,
+  } = req.body;
+
+  try {
+    let addedEmployee = await db(T_EMPLOYEES).returning("*").insert({
+      restaurant_owner_id: decoded_user_id,
+      employee_first_name,
+      employee_last_name,
+      employee_email_address,
+      employee_username,
+      employee_is_active: true,
+    });
+
+    if (addedEmployee.length !== 1) {
+      return res.json({
+        status: 0,
+        msg: "Unable to add employee",
+      });
+    }
+
+    res.json({
+      status: 1,
+      addedEmployee,
+    });
+  } catch (e) {
+    return res.json({
+      status: 0,
+      msg: "Server Error",
+    });
+  }
+});
+
+app.post("/get-employees", verifyToken, async (req, res) => {
+  const { decoded_user_id } = req.body;
+
+  const employees = await db(T_EMPLOYEES)
+    .select("*")
+    .where({
+      restaurant_owner_id: decoded_user_id,
+    })
+    .orderBy("employee_id", "asc")
+    .catch((e) => {
+      console.log(e);
+      return res.json({
+        status: 0,
+        msg: "Internal server error",
+      });
+    });
+
+  res.json({
+    status: 1,
+    employees,
+  });
 });
 
 //
