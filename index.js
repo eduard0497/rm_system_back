@@ -338,16 +338,18 @@ app.post("/owner-login", (req, res) => {
 });
 
 app.post("/validate-token", verifyToken, (req, res) => {
-  const { decoded_user_id } = req.body;
+  const { decoded_user_id, decoded_account_type } = req.body;
 
   if (!decoded_user_id) {
     res.json({
       status: 0,
+      no_decoded_user: true,
       msg: "Unable to verify the token",
     });
   } else {
     res.json({
       status: 1,
+      account_type: decoded_account_type,
       msg: "Token has been validated successfully",
     });
   }
@@ -355,6 +357,13 @@ app.post("/validate-token", verifyToken, (req, res) => {
 
 app.post("/get-restaurants", verifyToken, (req, res) => {
   const { decoded_user_id, decoded_account_type } = req.body;
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      kick_out: true,
+      msg: "Unauthorized user",
+    });
+  }
   db(T_RESTAURANTS)
     .select("*")
     .where({
@@ -392,6 +401,13 @@ app
       restaurant_email_address,
       restaurant_menu_note,
     } = req.body;
+
+    if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+      return res.json({
+        status: 0,
+        msg: "Unauthorized user",
+      });
+    }
 
     db(T_RESTAURANTS)
       .returning("*")
@@ -447,6 +463,13 @@ app
       restaurant_menu_note,
     } = req.body;
 
+    if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+      return res.json({
+        status: 0,
+        msg: "Unauthorized user",
+      });
+    }
+
     db(T_RESTAURANTS)
       .returning("*")
       .update({
@@ -491,6 +514,13 @@ app
 app.post("/get-current-subscription-details", verifyToken, (req, res) => {
   const { decoded_user_id, decoded_account_type, restaurant_id } = req.body;
 
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
+
   db(T_TRANSACTIONS)
     .whereNotNull("subscription_end_date")
     .where({
@@ -515,8 +545,19 @@ app.post("/get-current-subscription-details", verifyToken, (req, res) => {
 });
 
 app.post("/start-trial", verifyToken, async (req, res) => {
-  const { decoded_user_id, decoded_user_email_address, restaurant_id } =
-    req.body;
+  const {
+    decoded_user_id,
+    decoded_account_type,
+    decoded_user_email_address,
+    restaurant_id,
+  } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
 
   try {
     const existingTransactions = await db(T_TRANSACTIONS)
@@ -586,6 +627,12 @@ app.post("/start-trial", verifyToken, async (req, res) => {
 
 app.post("/create-checkout-session", verifyToken, async (req, res) => {
   const { decoded_user_id, decoded_account_type, restaurant_id } = req.body;
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
 
   try {
     const insertedTransaction = await db(T_TRANSACTIONS).returning("*").insert({
@@ -636,11 +683,19 @@ app.post("/create-checkout-session", verifyToken, async (req, res) => {
 app.post("/process-payment", verifyToken, async (req, res) => {
   const {
     decoded_user_id,
+    decoded_account_type,
     decoded_user_email_address,
     session_id,
     transaction_id,
     restaurant_id,
   } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
 
   try {
     const session = await stripe.checkout.sessions.retrieve(session_id);
@@ -772,7 +827,14 @@ app.post("/process-payment", verifyToken, async (req, res) => {
 });
 
 app.post("/get-payment-activity", verifyToken, async (req, res) => {
-  const { decoded_user_id } = req.body;
+  const { decoded_user_id, decoded_account_type } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
 
   const payments = await db(T_RESTAURANTS)
     .join(
@@ -814,11 +876,19 @@ app.post("/get-payment-activity", verifyToken, async (req, res) => {
 app.post("/add-employee", verifyToken, async (req, res) => {
   const {
     decoded_user_id,
+    decoded_account_type,
     employee_first_name,
     employee_last_name,
     employee_email_address,
     employee_username,
   } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
 
   try {
     let addedEmployee = await db(T_EMPLOYEES).returning("*").insert({
@@ -842,6 +912,12 @@ app.post("/add-employee", verifyToken, async (req, res) => {
       addedEmployee,
     });
   } catch (e) {
+    if (e.code === "23505") {
+      return res.json({
+        status: 0,
+        msg: "Such username already exists",
+      });
+    }
     return res.json({
       status: 0,
       msg: "Server Error",
@@ -850,7 +926,14 @@ app.post("/add-employee", verifyToken, async (req, res) => {
 });
 
 app.post("/get-employees", verifyToken, async (req, res) => {
-  const { decoded_user_id } = req.body;
+  const { decoded_user_id, decoded_account_type } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
 
   const employees = await db(T_EMPLOYEES)
     .select("*")
@@ -870,6 +953,146 @@ app.post("/get-employees", verifyToken, async (req, res) => {
     status: 1,
     employees,
   });
+});
+
+app.post("/email-login-instructions", verifyToken, async (req, res) => {
+  const { decoded_user_id, decoded_account_type, employee_id } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
+
+  try {
+    let employeeDetails = await db(T_EMPLOYEES)
+      .join(
+        T_OWNERS,
+        `${T_OWNERS}.owner_id`,
+        "=",
+        `${T_EMPLOYEES}.restaurant_owner_id`
+      )
+      .select(
+        `${T_EMPLOYEES}.employee_id`,
+        `${T_EMPLOYEES}.employee_first_name`,
+        `${T_EMPLOYEES}.employee_last_name`,
+        `${T_EMPLOYEES}.employee_email_address`,
+        `${T_EMPLOYEES}.employee_username`,
+        `${T_OWNERS}.owner_id`,
+        `${T_OWNERS}.owner_first_name`,
+        `${T_OWNERS}.owner_last_name`
+      )
+      .where(`${T_EMPLOYEES}.employee_id`, employee_id)
+      .where(`${T_OWNERS}.owner_id`, decoded_user_id);
+
+    if (employeeDetails.length !== 1) {
+      return res.json({
+        status: 0,
+        msg: "Unable to send email to the employee",
+      });
+    }
+
+    let email_text = generateEmployeeLoginInstructionText(
+      employeeDetails[0].employee_id,
+      employeeDetails[0].employee_first_name,
+      employeeDetails[0].employee_last_name,
+      employeeDetails[0].employee_username,
+      employeeDetails[0].owner_id,
+      employeeDetails[0].owner_first_name,
+      employeeDetails[0].owner_last_name
+    );
+
+    let mailOpts = mailOptions(
+      employeeDetails[0].employee_email_address,
+      `You have been registered as employee`,
+      email_text
+    );
+
+    let noteToAdd = `${employeeDetails[0].owner_first_name} ${employeeDetails[0].owner_last_name} (id - ${employeeDetails[0].owner_id}) tried to send login instructions to ${employeeDetails[0].employee_first_name} ${employeeDetails[0].employee_last_name} (id - ${employeeDetails[0].employee_id})`;
+    sendEmail(mailOpts, noteToAdd)
+      .then((sent) => {
+        if (sent) {
+          res.json({
+            status: 1,
+            msg: `Login instructions have been sent to ${employeeDetails[0].employee_first_name}`,
+          });
+        } else {
+          res.json({
+            status: 0,
+            msg: "Unable to send the email instructions",
+          });
+        }
+      })
+      .catch((error) => {
+        console.error("Error sending email:", error);
+        res.json({
+          status: 0,
+          msg: "An error occurred while sending the email instructions",
+        });
+      });
+  } catch (error) {
+    console.log("Error");
+    console.log(e);
+    res.json({
+      status: 0,
+      msg: "Internal server error",
+    });
+  }
+});
+
+app.post("/edit-employee-details", verifyToken, async (req, res) => {
+  const {
+    decoded_user_id,
+    decoded_account_type,
+    employee_id,
+    employee_first_name,
+    employee_last_name,
+    employee_is_active,
+  } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unauthorized user",
+    });
+  }
+
+  try {
+    let updatedEmployee = await db(T_EMPLOYEES)
+      .returning("*")
+      .update({
+        employee_first_name,
+        employee_last_name,
+        employee_is_active,
+      })
+      .where({
+        restaurant_owner_id: decoded_user_id,
+        employee_id,
+      });
+
+    if (updatedEmployee.length !== 1) {
+      return res.json({
+        status: 0,
+        msg: "Unable to update employee details",
+      });
+    }
+
+    const employees = await db(T_EMPLOYEES)
+      .select("*")
+      .where({
+        restaurant_owner_id: decoded_user_id,
+      })
+      .orderBy("employee_id", "asc");
+
+    res.json({
+      status: 1,
+      employees,
+    });
+  } catch (error) {
+    console.log("Error");
+    console.log(error);
+  }
 });
 
 //
@@ -894,39 +1117,32 @@ const mailOptions = (sendTo, subject, text) => {
 
 const sendEmail = async (itemToMail, note) => {
   return new Promise((resolve, reject) => {
-    transporter.sendMail(itemToMail, function (error, info) {
+    transporter.sendMail(itemToMail, async (error, info) => {
       let currentDateForDB = formattedCurrentTimestamp();
-      if (error) {
-        console.log(error);
-        db(T_SERVER_SENT_EMAILS)
-          .insert({
+      try {
+        if (error) {
+          console.error("Email sending error:", error);
+          await db(T_SERVER_SENT_EMAILS).insert({
             sent_to: itemToMail.to,
             note,
             successful: false,
             smtp_response: error.message.trim().split("For more")[0],
             time_stamp: currentDateForDB,
-          })
-          .catch((e) => {
-            console.log(e);
-          })
-          .finally(() => {
-            resolve(false);
           });
-      } else {
-        db(T_SERVER_SENT_EMAILS)
-          .insert({
+          resolve(false);
+        } else {
+          await db(T_SERVER_SENT_EMAILS).insert({
             sent_to: itemToMail.to,
             note,
             successful: true,
             smtp_response: info.response.trim(),
             time_stamp: currentDateForDB,
-          })
-          .catch((e) => {
-            console.log(e);
-          })
-          .finally(() => {
-            resolve(true);
           });
+          resolve(true);
+        }
+      } catch (dbError) {
+        console.error("Database error:", dbError);
+        reject(dbError);
       }
     });
   });
@@ -976,4 +1192,27 @@ const generateNewDateFromEndDate = (endDateString) => {
     endDate.setDate(endDate.getDate() + 30);
     return endDate.toISOString().slice(0, 10);
   }
+};
+
+const generateEmployeeLoginInstructionText = (
+  employee_id,
+  employee_first_name,
+  employee_last_name,
+  employee_username,
+  owner_id,
+  owner_first_name,
+  owner_last_name
+) => {
+  let token = jwt.sign(
+    {
+      employee_id,
+      owner_id,
+      account_type: ACCOUNT_TYPE_EMPLOYEE,
+    },
+    process.env.JWT_SECRET_KEY
+  );
+
+  let linkToInclude = `${process.env.FRONT_DOMAIN}/employee-login?token=${token}`;
+
+  return `Hello ${employee_first_name} ${employee_last_name}!\nYour employer ${owner_first_name} ${owner_last_name} has added you as an employee.\nHead to the following link and use this username to login: ${employee_username}\n${linkToInclude}`;
 };
