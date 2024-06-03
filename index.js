@@ -1048,6 +1048,7 @@ app.post("/edit-employee-details", verifyToken, async (req, res) => {
     employee_id,
     employee_first_name,
     employee_last_name,
+    employee_email_address,
     employee_is_active,
   } = req.body;
 
@@ -1064,6 +1065,7 @@ app.post("/edit-employee-details", verifyToken, async (req, res) => {
       .update({
         employee_first_name,
         employee_last_name,
+        employee_email_address,
         employee_is_active,
       })
       .where({
@@ -1092,6 +1094,127 @@ app.post("/edit-employee-details", verifyToken, async (req, res) => {
   } catch (error) {
     console.log("Error");
     console.log(error);
+  }
+});
+
+app.post("/get-restaurant-employee-accesses", verifyToken, async (req, res) => {
+  const { decoded_user_id, decoded_account_type, restaurant_id } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unathorized to access the endpoint",
+    });
+  }
+
+  try {
+    const employeesWithAccessIDs = await db(`${T_EMPLOYEES} as e`)
+      .leftJoin(`${T_EMPL_REST_ACCESS} as era`, function () {
+        this.on("e.employee_id", "=", "era.employee_id").andOn(
+          "era.restaurant_id",
+          "=",
+          restaurant_id
+        );
+      })
+      .select(
+        "e.employee_id",
+        "e.employee_first_name",
+        "e.employee_last_name",
+        "e.employee_username",
+        "era.id as employee_access_id"
+      )
+      .where("e.restaurant_owner_id", decoded_user_id)
+      .orderBy("e.employee_id", "asc");
+
+    res.json({
+      status: 1,
+      employeesWithAccessIDs,
+    });
+  } catch (error) {
+    console.log("Error");
+    console.log(error);
+    res.json({
+      status: 0,
+      msg: "Internal Server Error",
+    });
+  }
+});
+
+app.post("/give-access-to-employee", verifyToken, async (req, res) => {
+  const { decoded_user_id, decoded_account_type, restaurant_id, employee_id } =
+    req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unathorized to access the endpoint",
+    });
+  }
+
+  try {
+    const addedAccess = await db(T_EMPL_REST_ACCESS).returning("*").insert({
+      employee_id,
+      restaurant_id,
+      has_access: true,
+    });
+
+    if (addedAccess.length !== 1) {
+      return res.json({
+        status: 0,
+        msg: "Error occured while giving access to the employee",
+      });
+    }
+
+    res.json({
+      status: 1,
+      addedAccess,
+    });
+  } catch (error) {
+    console.log("Error");
+    console.log(error);
+    res.json({
+      status: 0,
+      msg: "Internal Server Error",
+    });
+  }
+});
+
+app.post("/revoke-employee-access", verifyToken, async (req, res) => {
+  const { decoded_user_id, decoded_account_type, access_id } = req.body;
+
+  if (decoded_account_type !== ACCOUNT_TYPE_OWNER) {
+    return res.json({
+      status: 0,
+      msg: "Unathorized to access the endpoint",
+    });
+  }
+
+  try {
+    const revokedAccess = await db(T_EMPL_REST_ACCESS)
+      .returning("*")
+      .del()
+      .where({
+        id: access_id,
+      });
+
+    if (revokedAccess.length !== 1) {
+      return res.json({
+        status: 0,
+        msg: "Error occured while revoking access of the employee",
+      });
+    }
+
+    res.json({
+      status: 1,
+      revokedAccess,
+    });
+  } catch (error) {
+    console.log("Error");
+    console.log(error);
+    res.json({
+      status: 0,
+      msg: "Internal Server Error",
+    });
   }
 });
 
