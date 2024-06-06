@@ -1218,6 +1218,67 @@ app.post("/revoke-employee-access", verifyToken, async (req, res) => {
   }
 });
 
+app.post("/search-employee-username", async (req, res) => {
+  const { token, employee_username } = req.body;
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
+  } catch (error) {
+    return res.json({
+      status: 0,
+      msg: "Invalid token has been provided",
+    });
+  }
+
+  let employee_id = decodedToken.employee_id;
+  let restaurant_owner_id = decodedToken.owner_id;
+  let account_type = decodedToken.account_type;
+
+  if (account_type !== ACCOUNT_TYPE_EMPLOYEE) {
+    return res.json({
+      status: 0,
+      msg: "Unable to verify account type",
+    });
+  }
+
+  let employeeFromDB = await db(T_EMPLOYEES).select("*").where({
+    employee_id,
+    restaurant_owner_id,
+    employee_username,
+  });
+
+  if (employeeFromDB.length !== 1) {
+    return res.json({
+      status: 0,
+      msg: "Invalid credentials",
+    });
+  }
+
+  if (!employeeFromDB[0].employee_password) {
+    res.json({
+      status: 1,
+      password_exists: false,
+    });
+  } else {
+    res.json({
+      status: 1,
+      password_exists: true,
+    });
+  }
+});
+
+// minchev es eli baner unem anelu, employee logini het kapvac,
+// hly vor menak sugum em username ka te che
+app.post("/get-restaurants-to-manage", verifyToken, async (req, res) => {
+  const { decoded_user_id, decoded_user_email_address, decoded_account_type } =
+    req.body;
+
+  res.json(
+    `UserID: ${decoded_user_id}, account: ${decoded_account_type}, email: ${decoded_user_email_address}`
+  );
+});
+
 //
 // LISTENING TO PORT
 //
