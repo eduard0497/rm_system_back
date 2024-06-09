@@ -1268,6 +1268,131 @@ app.post("/search-employee-username", async (req, res) => {
   }
 });
 
+app.post("/employee-set-password", async (req, res) => {
+  const { token, employee_username, employee_password } = req.body;
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
+  } catch (error) {
+    return res.json({
+      status: 0,
+      msg: "Invalid token has been provided",
+    });
+  }
+
+  let employee_id = decodedToken.employee_id;
+  let restaurant_owner_id = decodedToken.owner_id;
+  let account_type = decodedToken.account_type;
+
+  if (account_type !== ACCOUNT_TYPE_EMPLOYEE) {
+    return res.json({
+      status: 0,
+      msg: "Unable to verify account type",
+    });
+  }
+
+  let hashedPassword = await bcrypt.hashSync(employee_password, 10);
+
+  let updatedEmployeePassword = await db(T_EMPLOYEES)
+    .returning("*")
+    .update({
+      employee_password: hashedPassword,
+    })
+    .where({
+      employee_id,
+      restaurant_owner_id,
+      employee_username,
+    });
+
+  if (updatedEmployeePassword.length !== 1) {
+    return res.json({
+      status: 0,
+      msg: "Unable to update employee password",
+    });
+  }
+
+  let tokenForUser = jwt.sign(
+    {
+      user_id: updatedEmployeePassword[0].employee_id,
+      user_email_address: updatedEmployeePassword[0].employee_email_address,
+      account_type: ACCOUNT_TYPE_EMPLOYEE,
+
+      // expiration: setExpDateForToken(2),
+    },
+    process.env.JWT_SECRET_KEY
+  );
+
+  res.json({
+    status: 1,
+    token: tokenForUser,
+  });
+});
+
+app.post("/employee-login", async (req, res) => {
+  const { token, employee_username, employee_password } = req.body;
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
+  } catch (error) {
+    return res.json({
+      status: 0,
+      msg: "Invalid token has been provided",
+    });
+  }
+
+  let employee_id = decodedToken.employee_id;
+  let restaurant_owner_id = decodedToken.owner_id;
+  let account_type = decodedToken.account_type;
+
+  if (account_type !== ACCOUNT_TYPE_EMPLOYEE) {
+    return res.json({
+      status: 0,
+      msg: "Unable to verify account type",
+    });
+  }
+
+  let foundEmployee = await db(T_EMPLOYEES).select("*").where({
+    employee_id,
+    restaurant_owner_id,
+    employee_username,
+  });
+
+  if (foundEmployee.length !== 1) {
+    return res.json({
+      status: 0,
+      msg: "Unable to find employee info",
+    });
+  }
+
+  if (
+    !bcrypt.compareSync(employee_password, foundEmployee[0].employee_password)
+  ) {
+    res.json({
+      status: 0,
+      msg: "Invalid Credentials",
+    });
+    return;
+  }
+
+  let tokenForUser = jwt.sign(
+    {
+      user_id: foundEmployee[0].employee_id,
+      user_email_address: foundEmployee[0].employee_email_address,
+      account_type: ACCOUNT_TYPE_EMPLOYEE,
+
+      // expiration: setExpDateForToken(2),
+    },
+    process.env.JWT_SECRET_KEY
+  );
+
+  res.json({
+    status: 1,
+    token: tokenForUser,
+  });
+});
+
 // minchev es eli baner unem anelu, employee logini het kapvac,
 // hly vor menak sugum em username ka te che
 app.post("/get-restaurants-to-manage", verifyToken, async (req, res) => {
